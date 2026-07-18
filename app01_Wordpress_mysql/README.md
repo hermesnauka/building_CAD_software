@@ -120,3 +120,39 @@ backups, and should switch from a symmetric passphrase to
 `gpg --encrypt -r <recipient-pubkey>` so a compromised host can produce new
 backups without being able to decrypt any of them. Both are out of scope
 here — there's no real cloud target for this course demo.
+
+### Monitoring and intrusion detection (PLAN.md Phase 6)
+
+Scoped to what's genuinely testable on a single local host, where every
+request comes from the same loopback address (no distinct attacker IPs to
+key off of, unlike a real deployment's IP-based fail2ban rules):
+
+* **`wp-content/mu-plugins/auth-audit-log.php`** logs every login
+  attempt and locks an *account* (not an IP — the correct control when
+  every request is `127.0.0.1`) after `AUTH_LOCKOUT_THRESHOLD` failures
+  within `AUTH_LOCKOUT_WINDOW_SECONDS`, for `AUTH_LOCKOUT_DURATION_SECONDS`
+  (defaults 5 / 300 / 900 — configurable in `.env`).
+* **`scripts/intrusion-watch.sh`** tails `docker compose logs wordpress`
+  for lockout events and appends alerts to `logs/security-alerts.log`
+  (gitignored). Run it periodically (see the systemd timer below) — it
+  tracks what it already scanned so it never re-alerts on the same event.
+* **`scripts/health-check.sh`** checks `docker compose ps` +
+  `docker stats` and alerts to the same log if a container is unhealthy,
+  stopped, or over a CPU/memory threshold.
+
+```bash
+bash scripts/intrusion-watch.sh   # one-shot scan since last run
+bash scripts/health-check.sh      # one-shot health/resource check
+```
+
+**Out of scope / real production only**: a managed WAF/CDN with real
+visibility into distinct attacker IPs (IP-based blocking is meaningless
+against a single local host); a centralized SIEM aggregating logs across
+multiple hosts; real TLS termination (already correctly deferred behind
+`FORCE_SSL_ADMIN` and a reverse proxy); off-site/immutable backup storage
+(see above); and host-OS-level hardening (unattended-upgrades, CIS
+benchmarking) that Docker Compose has no control over. A
+Prometheus/cadvisor metrics dashboard was considered and deliberately
+left out of this pass — the account-lockout + log-alerting + container
+health check above covers what this course demo needs to concretely
+test end-to-end.
