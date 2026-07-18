@@ -33,6 +33,10 @@ services:
       WORDPRESS_DB_USER: ${MYSQL_USER}
       WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
       WORDPRESS_TABLE_PREFIX: ${WORDPRESS_TABLE_PREFIX:-wp_}
+      # Read by wp-content/mu-plugins/auth-audit-log.php via getenv().
+      AUTH_LOCKOUT_THRESHOLD: ${AUTH_LOCKOUT_THRESHOLD:-5}
+      AUTH_LOCKOUT_WINDOW_SECONDS: ${AUTH_LOCKOUT_WINDOW_SECONDS:-300}
+      AUTH_LOCKOUT_DURATION_SECONDS: ${AUTH_LOCKOUT_DURATION_SECONDS:-900}
       # Hardening: disable file editing from wp-admin, force SSL admin behind a
       # TLS-terminating proxy in production (see REQUIREMENTS.md security section).
       WORDPRESS_CONFIG_EXTRA: |
