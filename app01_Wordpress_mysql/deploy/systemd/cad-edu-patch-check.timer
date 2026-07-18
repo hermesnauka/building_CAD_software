@@ -1,0 +1,10 @@
+[Unit]
+Description=Run cad-edu-patch-check.service weekly (PLAN.md Phase 7)
+
+[Timer]
+OnCalendar=Mon *-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

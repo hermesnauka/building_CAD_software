@@ -177,4 +177,36 @@ The lower-ceremony cron equivalent, if the host doesn't run systemd:
 ```cron
 0 2 * * * cd /opt/cad-edu-platform/app01_Wordpress_mysql && bash scripts/backup.sh
 */5 * * * * cd /opt/cad-edu-platform/app01_Wordpress_mysql && bash scripts/health-check.sh && bash scripts/intrusion-watch.sh
+0 3 * * 1 cd /opt/cad-edu-platform/app01_Wordpress_mysql && bash scripts/check-updates.sh
 ```
+
+## Maintenance & Incident Response (PLAN.md Phase 7)
+
+### Patch management
+
+WordPress core already auto-applies minor/security releases
+(`WP_AUTO_UPDATE_CORE=minor`, set in `docker-compose.yml` since Phase 4).
+`scripts/check-updates.sh` covers the rest — major core upgrades, and
+**all** plugin/theme updates (WordPress.org-hosted ones: `akismet`,
+`two-factor`, `woocommerce`, `woocommerce-paypal-payments`,
+`twentytwenty{three,four,five}` — `cad-edu-core` and `cad-edu-theme` are
+this project's own code and have no upstream to check):
+
+```bash
+bash scripts/check-updates.sh
+```
+
+Reports to `logs/patch-status.log` (gitignored) and exits `2` if any
+update is available (`0` if everything's current) so a scheduler can
+branch on it. **Plugin/theme updates are check-and-report only, never
+auto-applied** — an untested update can silently break the checkout,
+RBAC, or MFA hooks this project depends on (`cad-edu-core.php`,
+`payments-hardening.php`, `mfa-enforcement.php`). Review and stage any
+reported update before applying it, the same SSDLC change-control posture
+Phase 5 already assumes for any code change. `deploy/systemd/` has a
+weekly timer (`cad-edu-patch-check.timer`) for this, installed the same
+way as the backup/healthcheck timers above.
+
+See also **[`INCIDENT_RESPONSE.md`](INCIDENT_RESPONSE.md)** for the
+breach-response runbook (detection, containment, eradication, recovery,
+post-incident review) referencing the tooling built across Phases 4–7.

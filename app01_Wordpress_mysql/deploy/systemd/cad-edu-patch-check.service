@@ -1,0 +1,14 @@
+[Unit]
+Description=CAD Edu Platform - patch management check (PLAN.md Phase 7)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# Adjust to wherever this repo's app01_Wordpress_mysql directory actually
+# lives on the deployment host.
+WorkingDirectory=/opt/cad-edu-platform/app01_Wordpress_mysql
+# Exit code 2 means "updates are available" (not a failure) — SuccessExitStatus
+# keeps systemd from treating that as a failed unit.
+ExecStart=/usr/bin/env bash scripts/check-updates.sh
+SuccessExitStatus=0 2
