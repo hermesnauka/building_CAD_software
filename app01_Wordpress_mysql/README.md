@@ -91,3 +91,32 @@ A real production host would set these ownership/mode targets at image
 build time (`Dockerfile` `COPY --chown=...` / a non-root `USER`) rather
 than via ad hoc `docker exec` after the fact — the scripts above are a
 course-demo stand-in for that, since this project has no Dockerfile.
+
+### Backups (PLAN.md Phase 6 / USER_STORIES.md US-09)
+
+```bash
+bash scripts/backup.sh
+```
+
+Dumps the database (`mysqldump --single-transaction`, no downtime), tars
+`wp-content/{themes,plugins,mu-plugins}` and `wp-content/uploads`, combines
+them, and encrypts the result with a symmetric GPG passphrase
+(`BACKUP_GPG_PASSPHRASE` in `.env` — generate one with
+`openssl rand -base64 32`). Archives land in `BACKUP_DIR` (default
+`./backups`, gitignored) at `600`, and anything older than
+`BACKUP_RETENTION_DAYS` (default 14) is pruned automatically.
+
+To restore:
+
+```bash
+bash scripts/restore.sh backups/cad-edu-backup-<timestamp>.tar.gz.gpg --dry-run  # inspect first
+bash scripts/restore.sh backups/cad-edu-backup-<timestamp>.tar.gz.gpg            # actually restore
+```
+
+This is on-host backup storage only. A real production deployment needs
+off-site/object-storage replication (e.g. S3/Backblaze with versioning or
+object-lock) so an attacker with host access can't also delete the
+backups, and should switch from a symmetric passphrase to
+`gpg --encrypt -r <recipient-pubkey>` so a compromised host can produce new
+backups without being able to decrypt any of them. Both are out of scope
+here — there's no real cloud target for this course demo.

@@ -7,6 +7,10 @@ wp-config.php
 *.sql
 *.sql.gz
 
+# scripts/backup.sh output and scripts/health-check.sh / intrusion-watch.sh logs.
+backups/
+logs/
+
 # WordPress writes bundled core plugins/themes into these bind-mounted
 # directories on first run. Only track our own custom code here.
 wp-content/plugins/*
