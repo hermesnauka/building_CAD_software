@@ -1,0 +1,10 @@
+[Unit]
+Description=Run cad-edu-backup.service daily (PLAN.md Phase 6 / US-09)
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

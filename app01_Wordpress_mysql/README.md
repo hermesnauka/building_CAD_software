@@ -156,3 +156,25 @@ Prometheus/cadvisor metrics dashboard was considered and deliberately
 left out of this pass — the account-lockout + log-alerting + container
 health check above covers what this course demo needs to concretely
 test end-to-end.
+
+### Scheduling backups and monitoring
+
+`deploy/systemd/` has timer templates for the backup and monitoring
+scripts above — daily backups at 02:00, health/intrusion checks every 5
+minutes. They're templates, not auto-installed (this repo has no business
+touching `/etc`): copy them to `/etc/systemd/system/`, fix the
+`WorkingDirectory=` path to wherever this repo actually lives on the
+deployment host, then:
+
+```bash
+sudo cp deploy/systemd/cad-edu-backup.{service,timer} deploy/systemd/cad-edu-healthcheck.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now cad-edu-backup.timer cad-edu-healthcheck.timer
+```
+
+The lower-ceremony cron equivalent, if the host doesn't run systemd:
+
+```cron
+0 2 * * * cd /opt/cad-edu-platform/app01_Wordpress_mysql && bash scripts/backup.sh
+*/5 * * * * cd /opt/cad-edu-platform/app01_Wordpress_mysql && bash scripts/health-check.sh && bash scripts/intrusion-watch.sh
+```

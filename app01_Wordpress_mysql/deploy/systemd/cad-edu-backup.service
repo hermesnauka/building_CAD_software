@@ -1,0 +1,11 @@
+[Unit]
+Description=CAD Edu Platform - encrypted DB + file backup (PLAN.md Phase 6 / US-09)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# Adjust to wherever this repo's app01_Wordpress_mysql directory actually
+# lives on the deployment host.
+WorkingDirectory=/opt/cad-edu-platform/app01_Wordpress_mysql
+ExecStart=/usr/bin/env bash scripts/backup.sh
