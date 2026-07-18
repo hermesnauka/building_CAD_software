@@ -58,7 +58,10 @@ services:
     environment:
       PMA_HOST: mysql
     ports:
-      - "${PHPMYADMIN_PORT:-8081}:80"
+      # Bound to loopback only — phpMyAdmin is a full DB-management UI and
+      # must never be reachable from outside this machine, even in the
+      # dev-tools profile (Phase 5 finding: was 0.0.0.0, network-reachable).
+      - "127.0.0.1:${PHPMYADMIN_PORT:-8081}:80"
     networks:
       - internal
 
