@@ -1,0 +1,54 @@
+# Hardening overlay for PLAN.md Phase 6 ("strict file and directory
+# permissions" / secure deployment posture). Contains only the delta on top
+# of docker-compose.yml — apply with:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.hardened.yml up -d
+#
+# Not merged into the base file so local day-to-day development (which
+# needs to write into wp-content/uploads, install plugins via wp-admin,
+# etc. without fighting read_only/cap restrictions) stays on the plain
+# compose file; this overlay is for exercising/demonstrating the hardened
+# posture intended for a production-like environment.
+#
+# Image digests below are pinned to what was verified running during the
+# Phase 6 security pass, so `up` can't silently drift to a new tag between
+# demo runs. Re-pin deliberately (docker inspect <image> --format
+# '{{index .RepoDigests 0}}') when intentionally upgrading.
+services:
+  mysql:
+    image: mysql@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+    cap_drop: ["ALL"]
+    # mysqld's entrypoint starts as root to initialize the data directory
+    # and drop privileges to the mysql user; these caps are what that
+    # sequence needs (chown the data dir, then setuid/setgid down).
+    cap_add: ["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE"]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run/mysqld
+    mem_limit: 1g
+    cpus: "1.0"
+    pids_limit: 200
+
+  wordpress:
+    image: wordpress@sha256:bfc320ed4f02dd3939186b8020de64203a48a939d6dedcf44cb92cf2368923f5
+    cap_drop: ["ALL"]
+    # NET_BIND_SERVICE: Apache binds port 80 (a privileged port even inside
+    # the container). SETUID/SETGID: Apache's master process starts as root
+    # specifically to bind that port, then forks worker processes running
+    # as www-data — that fork-and-drop needs both caps, or the "root"
+    # master silently fails to drop privilege and every file access is then
+    # evaluated as a mismatched/unprivileged user instead of www-data
+    # (confirmed live: wp-config.php at 640 www-data:www-data became
+    # unreadable and the site 500'd until these two caps were restored).
+    cap_add: ["NET_BIND_SERVICE", "SETUID", "SETGID"]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+      - /var/lock/apache2
+    mem_limit: 512m
+    cpus: "1.0"
+    pids_limit: 200
