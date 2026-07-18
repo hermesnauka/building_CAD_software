@@ -53,9 +53,52 @@ add_filter('wp_headers', function (array $headers): array {
     return $headers;
 });
 
-// X-Pingback is a WordPress-added header covered above; X-Powered-By is set
-// by PHP itself (the expose_php ini directive) and is not affected by the
-// wp_headers filter, so it has to be stripped separately.
-add_action('send_headers', function (): void {
+/**
+ * X-Pingback is a WordPress-added header covered above via wp_headers, but
+ * that filter (and the 'send_headers' action) only fires on the main
+ * front-end query — wp-admin pages and REST API responses never go through
+ * WP::main() and were still leaking X-Powered-By: PHP/<version> (confirmed
+ * via curl against /wp-admin/ and the REST API during Phase 5 testing).
+ * 'init' fires unconditionally before any output in every context (front
+ * end, admin, REST, admin-ajax), so headers set here apply everywhere.
+ *
+ * Also adds the security headers ZAP's Phase 5 baseline scan flagged as
+ * missing: MIME-sniffing protection, clickjacking protection (both the
+ * legacy header and the CSP directive, since older browsers only honor the
+ * former), a permissions policy disabling unused browser features, and a
+ * CSP that's deliberately permissive on script/style ('unsafe-inline' is
+ * required — WordPress core, wp-admin, and Gutenberg rely on inline
+ * scripts/styles throughout, and there is no nonce/hash infrastructure here
+ * to tighten that without breaking the admin) but restricts embeds/objects
+ * and explicitly allow-lists the PayPal domains the checkout flow needs.
+ *
+ * Not covered here: static assets (theme/plugin .css/.js) served directly
+ * by Apache never run this PHP at all. Setting headers on those requires
+ * mod_headers, which the stock `wordpress:php8.2-apache` image doesn't
+ * enable (and AllowOverride is None, so a wp-content/.htaccess wouldn't be
+ * honored either) — would need a custom Dockerfile to fix, out of scope
+ * for this change.
+ */
+add_action('init', function (): void {
     header_remove('X-Powered-By');
-});
+
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=(self "https://www.paypal.com" "https://www.sandbox.paypal.com")');
+
+    $paypal = "https://*.paypal.com https://www.paypalobjects.com";
+    header(
+        "Content-Security-Policy: " .
+        "default-src 'self'; " .
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' {$paypal}; " .
+        "style-src 'self' 'unsafe-inline' {$paypal}; " .
+        "img-src 'self' data: https:; " .
+        "font-src 'self' data:; " .
+        "connect-src 'self' {$paypal}; " .
+        "frame-src 'self' {$paypal}; " .
+        "frame-ancestors 'self'; " .
+        "base-uri 'self'; " .
+        "object-src 'none';"
+    );
+}, 1);
