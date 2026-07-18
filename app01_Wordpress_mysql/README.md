@@ -133,9 +133,14 @@ key off of, unlike a real deployment's IP-based fail2ban rules):
   within `AUTH_LOCKOUT_WINDOW_SECONDS`, for `AUTH_LOCKOUT_DURATION_SECONDS`
   (defaults 5 / 300 / 900 — configurable in `.env`).
 * **`scripts/intrusion-watch.sh`** tails `docker compose logs wordpress`
-  for lockout events and appends alerts to `logs/security-alerts.log`
-  (gitignored). Run it periodically (see the systemd timer below) — it
-  tracks what it already scanned so it never re-alerts on the same event.
+  for lockout events, plus a spike of `PHP_FATAL_SPIKE_THRESHOLD`
+  (default 3) PHP Fatal errors within `PHP_FATAL_SPIKE_WINDOW_SECONDS`
+  (default 300) — a common pre-exploitation signal (a plugin
+  vulnerability being probed, or a broken update) that isn't tied to any
+  one account, so the lockout mechanism above can't catch it. Appends
+  alerts to `logs/security-alerts.log` (gitignored). Run it periodically
+  (see the systemd timer below) — it tracks what it already scanned so it
+  never re-alerts on the same event.
 * **`scripts/health-check.sh`** checks `docker compose ps` +
   `docker stats` and alerts to the same log if a container is unhealthy,
   stopped, or over a CPU/memory threshold.
