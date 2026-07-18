@@ -10,10 +10,23 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Disable XML-RPC (not needed by this platform; reduces brute-force / DDoS surface).
+// Disable XML-RPC (not needed by this platform; reduces brute-force / DDoS
+// surface). The xmlrpc_enabled filter alone does NOT stop the endpoint from
+// responding (a common WordPress hardening mistake — it only disables a
+// handful of authenticated methods inside wp_xmlrpc_server, while
+// system.multicall/pingback.ping still respond) so the endpoint is also
+// blocked outright below.
 add_filter('xmlrpc_enabled', '__return_false');
 remove_action('wp_head', 'rsd_link');
 remove_action('wp_head', 'wlwmanifest_link');
+
+add_action('init', function (): void {
+    if (defined('XMLRPC_REQUEST') && XMLRPC_REQUEST) {
+        status_header(403);
+        header('Content-Type: text/plain; charset=utf-8');
+        die('XML-RPC services are disabled on this site.');
+    }
+});
 
 // Hide the WordPress version from markup, RSS feeds, and script/style query strings.
 remove_action('wp_head', 'wp_generator');
@@ -38,4 +51,11 @@ if (!defined('DISALLOW_FILE_EDIT')) {
 add_filter('wp_headers', function (array $headers): array {
     unset($headers['X-Pingback']);
     return $headers;
+});
+
+// X-Pingback is a WordPress-added header covered above; X-Powered-By is set
+// by PHP itself (the expose_php ini directive) and is not affected by the
+// wp_headers filter, so it has to be stripped separately.
+add_action('send_headers', function (): void {
+    header_remove('X-Powered-By');
 });

@@ -89,10 +89,15 @@ register_deactivation_hook(__FILE__, 'cad_edu_deactivate');
  * Restricts premium educational module content to logged-in, entitled users
  * (see USER_STORIES.md US-05). Entitlement check is left to the commerce
  * plugin (e.g. WooCommerce) integration; this only enforces the gate point.
+ *
+ * Gates by post type rather than is_singular('cad_module') so it also
+ * applies to excerpts rendered in archive/loop contexts, not just single
+ * views (a front-end archive teaser is not itself an access boundary, but
+ * gating both keeps the two filters consistent).
  */
 function cad_edu_gate_premium_content(string $content): string
 {
-    if (!is_singular('cad_module')) {
+    if (get_post_type() !== 'cad_module') {
         return $content;
     }
 
@@ -103,3 +108,32 @@ function cad_edu_gate_premium_content(string $content): string
     return '<p>' . esc_html__('This educational module is available to enrolled students only.', 'cad-edu-core') . '</p>';
 }
 add_filter('the_content', 'cad_edu_gate_premium_content');
+add_filter('the_excerpt', 'cad_edu_gate_premium_content');
+
+/**
+ * The gate above relies on the main-query template pipeline and never runs
+ * for REST responses (WP_REST_Posts_Controller reads post_content/excerpt
+ * directly and only denies access to non-published posts). Strip the
+ * rendered content/excerpt here too so `GET /wp-json/wp/v2/cad_module/<id>`
+ * can't be used to read premium content unauthenticated.
+ */
+function cad_edu_gate_premium_content_rest(WP_REST_Response $response, WP_Post $post, WP_REST_Request $request): WP_REST_Response
+{
+    if (is_user_logged_in() && current_user_can('read_premium_cad_module')) {
+        return $response;
+    }
+
+    $message = esc_html__('This educational module is available to enrolled students only.', 'cad-edu-core');
+    $data = $response->get_data();
+
+    if (isset($data['content']['rendered'])) {
+        $data['content']['rendered'] = $message;
+    }
+    if (isset($data['excerpt']['rendered'])) {
+        $data['excerpt']['rendered'] = $message;
+    }
+
+    $response->set_data($data);
+    return $response;
+}
+add_filter('rest_prepare_cad_module', 'cad_edu_gate_premium_content_rest', 10, 3);
